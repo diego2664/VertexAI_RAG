@@ -1,0 +1,17 @@
+google-cloud-storage
+google-cloud-aiplatform
+PyPDF2
+python-dotenv
+langchain
+google-cloud-storage
+google-cloud-aiplatform
+langchain-community
+python-dotenv
+pypdf
+langchain
+chromadb # Vector storage
+pytest
+boto3
+langchain-google-vertexai
+
+
