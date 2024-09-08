@@ -13,5 +13,8 @@ chromadb # Vector storage
 pytest
 boto3
 langchain-google-vertexai
+langchain_google_community
+gcs_utils
+streamlit
 
 

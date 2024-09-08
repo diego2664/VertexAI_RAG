@@ -1,12 +1,15 @@
 import argparse
 import os
 import shutil
-from langchain.document_loaders.pdf import PyPDFDirectoryLoader
+from langchain_community.document_loaders import PyPDFDirectoryLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain.schema.document import Document
-from get_embedding_function import get_embedding_function
-from langchain.vectorstores.chroma import Chroma
+from get_embedding_function_vertex import get_embedding_function
+from google.cloud import aiplatform
+from google.cloud.aiplatform import MatchingEngineIndex
+from dotenv import load_dotenv
 
+load_dotenv()
 
 CHROMA_PATH = "chroma"
 DATA_PATH = "data"
@@ -28,7 +31,7 @@ def main():
     # Create (or update) the data store.
     documents = load_documents()
     chunks = split_documents(documents)
-    add_to_chroma(chunks)
+    add_to_vertex(chunks)
 
 
 def load_documents():
@@ -63,7 +66,7 @@ def add_to_vertex(chunks: list[Document]):
         # Si el índice no existe, créalo
         index = MatchingEngineIndex.create(
             display_name=INDEX_ID,
-            dimensions=1536,  # Ajusta esto según la dimensión de tus embeddings
+            dimensions=768,  # Ajusta esto según la dimensión de tus embeddings
             metadata_config={
                 "id": "STRING",
                 "source": "STRING",
@@ -92,36 +95,16 @@ def add_to_vertex(chunks: list[Document]):
         })
 
     # Upsert de vectores al índice
-    index.upsert(
+    index_endpoint = index.deploy()
+    matching_engine_index_endpoint = index_endpoint.gca_resource
+
+    matching_engine_index_endpoint.upsert_embeddings(
         embeddings=embeddings,
         ids=ids,
-        metadatas=metadatas,
+        deployment_name=index.deployed_index.id
     )
 
     print(f"✅ Añadidos/actualizados {len(chunks)} documentos en el índice de Vertex AI")
-
-
-    # Calculate Page IDs.
-    chunks_with_ids = calculate_chunk_ids(chunks)
-
-    # Add or Update the documents.
-    existing_items = db.get(include=[])  # IDs are always included by default
-    existing_ids = set(existing_items["ids"])
-    print(f"Number of existing documents in DB: {len(existing_ids)}")
-
-    # Only add documents that don't exist in the DB.
-    new_chunks = []
-    for chunk in chunks_with_ids:
-        if chunk.metadata["id"] not in existing_ids:
-            new_chunks.append(chunk)
-
-    if len(new_chunks):
-        print(f"👉 Adding new documents: {len(new_chunks)}")
-        new_chunk_ids = [chunk.metadata["id"] for chunk in new_chunks]
-        db.add_documents(new_chunks, ids=new_chunk_ids)
-        db.persist()
-    else:
-        print("✅ No new documents to add")
 
 
 def calculate_chunk_ids(chunks):
